@@ -4,8 +4,8 @@ A comprehensive GUI-based resistor calculator and color code decoder built with 
 
 ![Python](https://img.shields.io/badge/python-v3.6+-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-lightgrey)
-![Release](https://img.shields.io/github/v/release/yourusername/ResistorCalculator)
-![Downloads](https://img.shields.io/github/downloads/yourusername/ResistorCalculator/total)
+![Release](https://img.shields.io/github/v/release/MadeBySaints/ResistorCalculator)
+![Downloads](https://img.shields.io/github/downloads/MadeBySaints/ResistorCalculator/total)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## ✨ Features
