@@ -35,7 +35,7 @@ A comprehensive GUI-based resistor calculator and color code decoder built with 
 ## 🚀 Quick Start
 
 ### Option 1: Download Pre-built Executable (Recommended)
-1. Go to the [**Releases**](https://github.com/yourusername/ResistorCalculator/releases) page
+1. Go to the [**Releases**]([https://github.com/yourusername/ResistorCalculator/releases](https://github.com/MadeBySaints/ResistorCalculator/releases)) page
 2. Download the latest `ResistorCalculator.exe`
 3. Double-click to run - **no installation required!**
 
