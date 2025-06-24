@@ -50,6 +50,10 @@ class ResistorCalculator:
                        variable=self.calc_type, value="color_code",
                        command=self.update_interface).grid(row=1, column=1, sticky=tk.W)
         
+        ttk.Radiobutton(calc_frame, text="Reverse Lookup", 
+                       variable=self.calc_type, value="reverse_lookup",
+                       command=self.update_interface).grid(row=1, column=2, sticky=tk.W)
+        
         # Input frame
         self.input_frame = ttk.LabelFrame(main_frame, text="Input Values", padding="10")
         self.input_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
@@ -101,6 +105,8 @@ class ResistorCalculator:
             self.setup_series_parallel_interface()
         elif calc_type == "color_code":
             self.setup_color_code_interface()
+        elif calc_type == "reverse_lookup":
+            self.setup_reverse_lookup_interface()
     
     def setup_ohms_law_interface(self):
         """Setup interface for Ohm's law calculations"""
@@ -179,6 +185,33 @@ class ResistorCalculator:
         
         ttk.Label(self.input_frame, text="Example: 100, 200, 330").grid(
             row=2, column=1, sticky=tk.W, pady=(0, 10), padx=(10, 0))
+    
+    def setup_reverse_lookup_interface(self):
+        """Setup interface for reverse lookup (resistance to color bands)"""
+        ttk.Label(self.input_frame, text="Find Color Bands for Resistance Value:").grid(
+            row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
+        
+        ttk.Label(self.input_frame, text="Resistance (Ω):").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.lookup_resistance_var = tk.StringVar()
+        ttk.Entry(self.input_frame, textvariable=self.lookup_resistance_var).grid(
+            row=1, column=1, sticky=(tk.W, tk.E), pady=2, padx=(10, 0))
+        
+        ttk.Label(self.input_frame, text="Examples: 330, 1000, 4.7k, 2.2M").grid(
+            row=2, column=1, sticky=tk.W, pady=(0, 5), padx=(10, 0))
+        
+        ttk.Label(self.input_frame, text="Number of Bands:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        self.lookup_bands_var = tk.StringVar(value="4")
+        bands_combo = ttk.Combobox(self.input_frame, textvariable=self.lookup_bands_var, 
+                                  values=["3", "4", "5", "6"], state="readonly", width=5)
+        bands_combo.grid(row=3, column=1, sticky=tk.W, padx=(10, 0), pady=5)
+        
+        # Tolerance selection for 4, 5, and 6 band resistors
+        ttk.Label(self.input_frame, text="Tolerance (%):").grid(row=4, column=0, sticky=tk.W, pady=2)
+        self.lookup_tolerance_var = tk.StringVar(value="5")
+        tolerance_combo = ttk.Combobox(self.input_frame, textvariable=self.lookup_tolerance_var,
+                                     values=["0.05", "0.1", "0.25", "0.5", "1", "2", "5", "10", "20"], 
+                                     state="readonly", width=10)
+        tolerance_combo.grid(row=4, column=1, sticky=tk.W, padx=(10, 0), pady=2)
     
     def setup_color_code_interface(self):
         """Setup interface for resistor color code decoding"""
@@ -306,9 +339,220 @@ class ResistorCalculator:
                 self.calculate_series_parallel()
             elif calc_type == "color_code":
                 self.calculate_color_code()
+            elif calc_type == "reverse_lookup":
+                self.calculate_reverse_lookup()
                 
         except Exception as e:
             messagebox.showerror("Error", f"Calculation error: {str(e)}")
+    
+    def parse_resistance_value(self, value_str):
+        """Parse resistance value with k/M suffixes"""
+        value_str = value_str.strip().upper()
+        
+        if value_str.endswith('K'):
+            return float(value_str[:-1]) * 1000
+        elif value_str.endswith('M'):
+            return float(value_str[:-1]) * 1000000
+        else:
+            return float(value_str)
+    
+    def calculate_reverse_lookup(self):
+        """Calculate color bands for given resistance value"""
+        resistance_str = self.lookup_resistance_var.get().strip()
+        if not resistance_str:
+            raise ValueError("Please enter a resistance value")
+        
+        resistance = self.parse_resistance_value(resistance_str)
+        num_bands = int(self.lookup_bands_var.get())
+        tolerance = float(self.lookup_tolerance_var.get())
+        
+        result = "=== Reverse Lookup: Resistance to Color Bands ===\n\n"
+        result += f"Target Resistance: {self.format_resistance(resistance)}\n"
+        result += f"Number of Bands: {num_bands}\n"
+        result += f"Tolerance: ±{tolerance}%\n\n"
+        
+        # Color mappings (reverse of decode)
+        value_to_color = {v: k for k, v in {
+            'Black': 0, 'Brown': 1, 'Red': 2, 'Orange': 3, 'Yellow': 4,
+            'Green': 5, 'Blue': 6, 'Violet': 7, 'Gray': 8, 'White': 9
+        }.items()}
+        
+        tolerance_to_color = {v: k for k, v in {
+            'Brown': 1, 'Red': 2, 'Gold': 5, 'Silver': 10,
+            'Green': 0.5, 'Blue': 0.25, 'Violet': 0.1, 'Gray': 0.05
+        }.items()}
+        
+        # Find the best representation
+        colors = self.find_color_bands(resistance, num_bands, tolerance, 
+                                     value_to_color, tolerance_to_color)
+        
+        if colors:
+            result += f"Color Bands: {' - '.join(colors)}\n\n"
+            
+            # Show band meanings
+            band_labels = []
+            if num_bands == 3:
+                band_labels = ["1st Digit", "2nd Digit", "Multiplier"]
+            elif num_bands == 4:
+                band_labels = ["1st Digit", "2nd Digit", "Multiplier", "Tolerance"]
+            elif num_bands == 5:
+                band_labels = ["1st Digit", "2nd Digit", "3rd Digit", "Multiplier", "Tolerance"]
+            elif num_bands == 6:
+                band_labels = ["1st Digit", "2nd Digit", "3rd Digit", "Multiplier", "Tolerance", "Temp Coeff"]
+            
+            result += "Band Breakdown:\n"
+            for i, (label, color) in enumerate(zip(band_labels, colors)):
+                result += f"• {label}: {color}\n"
+            
+            # Verify the result
+            calculated_resistance = self.verify_color_combination(colors, num_bands)
+            result += f"\nVerification: {self.format_resistance(calculated_resistance)}\n"
+            
+            if abs(calculated_resistance - resistance) / resistance < 0.001:
+                result += "✓ Exact match!\n"
+            else:
+                error_percent = abs(calculated_resistance - resistance) / resistance * 100
+                result += f"Approximation error: {error_percent:.2f}%\n"
+        else:
+            result += "Could not find exact color band representation.\n"
+            result += "This value may not be available in standard resistor series.\n\n"
+            
+            # Suggest nearest standard values
+            standard_values = self.get_standard_values_near(resistance)
+            result += "Nearest standard values:\n"
+            for val in standard_values:
+                result += f"• {self.format_resistance(val)}\n"
+        
+        self.display_result(result)
+    
+    def find_color_bands(self, resistance, num_bands, tolerance, value_to_color, tolerance_to_color):
+        """Find color bands for given resistance value"""
+        # Try to find the best multiplier and significant digits
+        log_resistance = math.log10(resistance)
+        
+        if num_bands == 3:
+            # 2 significant digits
+            if log_resistance < 2:  # Less than 100 ohms
+                return None  # 3-band resistors typically start at 100 ohms
+            
+            multiplier_power = int(log_resistance) - 1
+            significant_part = resistance / (10 ** multiplier_power)
+            
+            if significant_part >= 100:
+                multiplier_power += 1
+                significant_part = resistance / (10 ** multiplier_power)
+            
+            digit1 = int(significant_part // 10)
+            digit2 = int(significant_part % 10)
+            
+            if digit1 in value_to_color and digit2 in value_to_color and multiplier_power in value_to_color:
+                return [value_to_color[digit1], value_to_color[digit2], value_to_color[multiplier_power]]
+        
+        elif num_bands in [4, 5, 6]:
+            # Determine number of significant digits
+            sig_digits = 2 if num_bands == 4 else 3
+            
+            # Find the best multiplier
+            multiplier_power = max(-2, int(log_resistance) - sig_digits + 1)
+            significant_part = resistance / (10 ** multiplier_power)
+            
+            # Adjust if necessary
+            max_significant = 10 ** sig_digits
+            if significant_part >= max_significant:
+                multiplier_power += 1
+                significant_part = resistance / (10 ** multiplier_power)
+            
+            # Round to nearest integer
+            significant_part = round(significant_part)
+            
+            if sig_digits == 2:
+                if significant_part < 10 or significant_part >= 100:
+                    return None
+                digit1 = significant_part // 10
+                digit2 = significant_part % 10
+                digits = [digit1, digit2]
+            else:  # sig_digits == 3
+                if significant_part < 100 or significant_part >= 1000:
+                    return None
+                digit1 = significant_part // 100
+                digit2 = (significant_part // 10) % 10
+                digit3 = significant_part % 10
+                digits = [digit1, digit2, digit3]
+            
+            # Check if all digits are valid colors
+            if not all(d in value_to_color for d in digits):
+                return None
+            
+            # Check if multiplier is valid
+            if multiplier_power not in value_to_color:
+                return None
+            
+            colors = [value_to_color[d] for d in digits] + [value_to_color[multiplier_power]]
+            
+            # Add tolerance
+            if tolerance in tolerance_to_color:
+                colors.append(tolerance_to_color[tolerance])
+            else:
+                colors.append('Gold')  # Default to 5% if exact tolerance not found
+            
+            # Add temperature coefficient for 6-band (default Brown = 100ppm)
+            if num_bands == 6:
+                colors.append('Brown')
+            
+            return colors
+        
+        return None
+    
+    def verify_color_combination(self, colors, num_bands):
+        """Verify what resistance value the color combination produces"""
+        color_values = {
+            'Black': 0, 'Brown': 1, 'Red': 2, 'Orange': 3, 'Yellow': 4,
+            'Green': 5, 'Blue': 6, 'Violet': 7, 'Gray': 8, 'White': 9,
+            'Gold': -1, 'Silver': -2
+        }
+        
+        if num_bands == 3:
+            digit1 = color_values[colors[0]]
+            digit2 = color_values[colors[1]]
+            multiplier = color_values[colors[2]]
+            return (digit1 * 10 + digit2) * (10 ** multiplier)
+        
+        elif num_bands == 4:
+            digit1 = color_values[colors[0]]
+            digit2 = color_values[colors[1]]
+            multiplier = color_values[colors[2]]
+            return (digit1 * 10 + digit2) * (10 ** multiplier)
+        
+        elif num_bands in [5, 6]:
+            digit1 = color_values[colors[0]]
+            digit2 = color_values[colors[1]]
+            digit3 = color_values[colors[2]]
+            multiplier = color_values[colors[3]]
+            return (digit1 * 100 + digit2 * 10 + digit3) * (10 ** multiplier)
+        
+        return 0
+    
+    def get_standard_values_near(self, target_resistance):
+        """Get standard resistor values near the target"""
+        # E12 series (common 5% and 10% resistors)
+        e12_base = [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2]
+        
+        # Find the appropriate decade
+        log_target = math.log10(target_resistance)
+        decade_power = int(log_target)
+        decade_multiplier = 10 ** decade_power
+        
+        # Generate values in the target decade and adjacent decades
+        standard_values = []
+        for power in [decade_power - 1, decade_power, decade_power + 1]:
+            multiplier = 10 ** power
+            for base in e12_base:
+                value = base * multiplier
+                if value > 0.1:  # Minimum practical resistor value
+                    standard_values.append(value)
+        
+        # Sort by difference from target
+        standard_values.sort(key=lambda x: abs(x - target_resistance))
     
     def calculate_ohms_law(self):
         """Calculate using Ohm's law"""
